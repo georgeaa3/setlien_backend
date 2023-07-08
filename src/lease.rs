@@ -9,3 +9,11 @@ pub fn write_lease(env: &Env, token: &Address, lease: &LeasingRenting) {
 pub fn load_lease(env: &Env, token: &Address) -> LeasingRenting {
     env.storage().get_unchecked(&DataKey::Lease(token.clone())).unwrap()
 }
+
+pub fn has_lease(env: &Env, token: &Address) -> bool {
+    env.storage().has(&DataKey::Lease(token.clone()))
+}
+
+pub fn remove_lease(env: &Env, token: &Address) {
+    env.storage().remove(&DataKey::Lease(token.clone()))
+}

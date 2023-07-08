@@ -2,15 +2,15 @@ use crate::admin::{
     has_administrator, pause_rent, read_administrator, read_payment_token, resume_rent,
     write_administrator, write_payment_token,
 };
-use crate::event;
-use crate::lease::{load_lease, write_lease};
+use crate::event::{self};
+use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
-use crate::token_utils::{
-    make_admin, set_authorized, set_unauthorized, transfer_from,
-};
+use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from};
 
 use soroban_sdk::{contractimpl, Address, Env};
 pub struct SetLien;
+
+const NFT_BALANCE: i128 = 1;
 
 #[contractimpl]
 impl SetLien {
@@ -20,6 +20,8 @@ impl SetLien {
         }
         write_administrator(&env, &_admin);
         write_payment_token(&env, &_payment_token);
+
+        event::initialized(&env, &_admin, &_payment_token);
     }
 
     pub fn pause(env: Env) {
@@ -42,6 +44,12 @@ impl SetLien {
         leaser.require_auth();
 
         let current = &env.current_contract_address();
+
+        // Already has lease
+        if has_lease(&env, &token) {
+            panic!("token already has lease");
+        }
+
         if !is_leaseable(&env, &leaser, &token, _price, _duration) {
             panic!("cannot lease token");
         }
@@ -71,6 +79,7 @@ impl SetLien {
         // write lease
         write_lease(&env, &token, &leaserent);
 
+        event::leased(&env, &leaser, &token, _price, _duration);
         // Emit event
     }
 
@@ -82,13 +91,23 @@ impl SetLien {
 
         renter.require_auth();
 
+        if !has_lease(&env, &token) {
+            panic!("token does not have lease");
+        }
+
         // Load lease
         let mut leaser_renter = load_lease(&env, &token);
         let leaser = &leaser_renter.leasing.leaser;
         let price = leaser_renter.leasing.price;
         let payment_token = read_payment_token(&env);
 
-        if !is_rentable(&env, &renter, &leaser, _duration, leaser_renter.leasing.max_duration) {
+        if !is_rentable(
+            &env,
+            &renter,
+            &leaser,
+            _duration,
+            leaser_renter.leasing.max_duration,
+        ) {
             panic!("cannot rent token");
         }
 
@@ -105,7 +124,7 @@ impl SetLien {
         set_authorized(&env, &token, &leaser);
 
         // Transfer nft to the renter
-        transfer_from(&env, &token, leaser, &renter, 1);
+        transfer_from(&env, &token, leaser, &renter, NFT_BALANCE);
         // Set authorized to false so that user cannot transfer token unless delisted
         set_unauthorized(&env, &token, &renter);
         // Set all fields
@@ -119,6 +138,8 @@ impl SetLien {
         leaser_renter.state = LeaseState::Rented;
 
         write_lease(&env, &token, &leaser_renter);
+
+        event::rented(&env, &renter, &token,  _duration);
     }
 
     pub fn end_lease(env: Env, leaser: Address, token: Address) {
@@ -127,33 +148,24 @@ impl SetLien {
         // Change admin back to leaser
 
         leaser.require_auth();
+        if !has_lease(&env, &token) {
+            panic!("token does not have lease");
+        }
         // Load lease
-        let mut leaser_renter = load_lease(&env, &token);
+        let leaser_renter = load_lease(&env, &token);
 
         if leaser_renter.state != LeaseState::Listed {
             panic!("cannot end lease for a non-listed token");
         }
 
-        // Set authorized to true so that user can transfer token now
-        // set_authorized(&env, &token, &leaser);
-        // Set all fields
-        let renting: Renting = Renting {
-            renter: leaser.clone(),
-            rent_duration: 0,
-            rented_at: 0,
-        };
+        // make leaser admin of the nft token
+        make_admin(&env, &token, &leaser);
+        // Set authorized to true
+        set_authorized(&env, &token, &leaser);
 
-        let lease = Leasing {
-            leaser: leaser.clone(),
-            max_duration: 0,
-            price: 0,
-        };
+        remove_lease(&env, &token);
 
-        leaser_renter.renting = renting;
-        leaser_renter.leasing = lease;
-        leaser_renter.state = LeaseState::Available;
-
-        write_lease(&env, &token, &leaser_renter);
+        event::end_lease(&env, &leaser, &token, 0);
     }
 
     pub fn end_rent(env: Env, renter: Address, token: Address) {
@@ -162,8 +174,12 @@ impl SetLien {
         // Set authorized to true for both
 
         renter.require_auth();
+
+        if !has_lease(&env, &token) {
+            panic!("token does not have lease");
+        }
         // Load lease
-        let mut leaser_renter = load_lease(&env, &token);
+        let leaser_renter = load_lease(&env, &token);
 
         if leaser_renter.state != LeaseState::Rented {
             panic!("cannot end rent for a non-rented token");
@@ -178,15 +194,16 @@ impl SetLien {
             &token,
             &leaser_renter.renting.renter,
             &leaser_renter.leasing.leaser,
-            1,
+            NFT_BALANCE,
         );
         // Set authorized to false so that user cannot transfer token unless delisted
-        set_unauthorized(&env, &token, &leaser_renter.leasing.leaser);
+        set_authorized(&env, &token, &leaser_renter.leasing.leaser);
+        // make leaser admin of the nft token
+        make_admin(&env, &token, &leaser_renter.leasing.leaser);
+        
+        remove_lease(&env, &token);
 
-        leaser_renter.renting.rent_duration = 0;
-        leaser_renter.state = LeaseState::Listed;
-
-        write_lease(&env, &token, &leaser_renter);
+        event::returned(&env, &renter, &token, 0);
     }
 
     pub fn claim_token(env: Env, leaser: Address, token: Address, relist: bool) {
@@ -199,8 +216,11 @@ impl SetLien {
             panic!("cannot default for a non-rented token");
         }
 
-        let (duration, rented_at, max_duration) = (leaser_renter.leasing.max_duration, leaser_renter.renting.rented_at, leaser_renter.renting.rent_duration);
-        
+        let (duration, rented_at, max_duration) = (
+            leaser_renter.leasing.max_duration,
+            leaser_renter.renting.rented_at,
+            leaser_renter.renting.rent_duration,
+        );
 
         // Check if rent is overdue
         if !is_claimable(&env, rented_at, duration, max_duration) {
@@ -216,20 +236,24 @@ impl SetLien {
             &token,
             &leaser_renter.renting.renter,
             &leaser_renter.leasing.leaser,
-            1,
+            NFT_BALANCE,
         );
 
         if relist {
             // Set authorized to false so that user cannot transfer token unless delisted
             set_unauthorized(&env, &token, &leaser_renter.leasing.leaser);
             leaser_renter.state = LeaseState::Listed;
+            leaser_renter.renting.rent_duration = 0;
+            write_lease(&env, &token, &leaser_renter);
         } else {
-            leaser_renter.state = LeaseState::Available;
+            set_authorized(&env, &token, &leaser_renter.leasing.leaser);
+            // make leaser admin of the nft token
+            make_admin(&env, &token, &leaser_renter.leasing.leaser);
+            
+            remove_lease(&env, &token);
         }
 
-        leaser_renter.renting.rent_duration = 0;
-
-        write_lease(&env, &token, &leaser_renter);
+        event::claimed(&env, &leaser, &token, relist);
     }
 
     pub fn get_lease(env: Env, token: Address) -> LeasingRenting {
@@ -249,7 +273,13 @@ fn is_nft(env: &Env, leaser: &Address, token: &Address) -> bool {
     true
 }
 
-fn is_leaseable(env: &Env, leaser: &Address, token: &Address, _price: u128, _duration: u128) -> bool {
+fn is_leaseable(
+    env: &Env,
+    leaser: &Address,
+    token: &Address,
+    _price: u128,
+    _duration: u128,
+) -> bool {
     if _price <= 0 || _duration <= 0 {
         return false;
     }
@@ -257,11 +287,17 @@ fn is_leaseable(env: &Env, leaser: &Address, token: &Address, _price: u128, _dur
     if !is_nft(env, leaser, token) {
         return false;
     }
-    
+
     true
 }
 
-fn is_rentable(env: &Env, renter: &Address, leaser: &Address, _duration: u128, max_duration: u128) -> bool {
+fn is_rentable(
+    env: &Env,
+    renter: &Address,
+    leaser: &Address,
+    _duration: u128,
+    max_duration: u128,
+) -> bool {
     if renter.eq(leaser) {
         return false;
     }
@@ -279,7 +315,7 @@ fn is_rentable(env: &Env, renter: &Address, leaser: &Address, _duration: u128, m
 fn is_claimable(env: &Env, rented_at: u128, duration: u128, max_duration: u128) -> bool {
     // now: 100000, rented_at: 90000, duration: 1000, max_duration: 2000
     let now = env.ledger().timestamp() as u128; // 10000
-    // rent time has not started yet (should never happen)
+                                                // rent time has not started yet (should never happen)
     if rented_at > now {
         return false;
     }
