@@ -14,11 +14,15 @@ pub fn transfer(e: &Env, token: &Address, from: &Address, to: &Address, amount: 
 pub fn transfer_from(e: &Env, token: &Address, from: &Address, to: &Address, amount: i128) {
     let token_client = token::Client::new(e, token);
     let contract_address = e.current_contract_address();
-    let approve_amount = amount * 2;
 
     log!(e, "{}, {}", balance(e, token, from), amount);
-    token_client.increase_allowance(from, &contract_address, &approve_amount);
     token_client.transfer_from(&contract_address, from, to, &amount);
+}
+
+pub fn increase_allowance(e: &Env, token: &Address, from: &Address, to: &Address, amount: i128) {
+    let token_client = token::Client::new(e, token);
+    token_client.increase_allowance(from, &to, &amount);
+    log!(e, "Allwance: {}, {}", token_client.allowance(from, to), amount);
 }
 
 pub fn make_admin(e: &Env, token: &Address, to: &Address) {

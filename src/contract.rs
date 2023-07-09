@@ -5,12 +5,13 @@ use crate::admin::{
 use crate::event::{self};
 use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
-use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from};
+use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
 use soroban_sdk::{contractimpl, Address, Env};
 pub struct SetLien;
 
 const NFT_BALANCE: i128 = 1;
+const SECONDS_IN_DAYS: u128 = 86400;
 
 #[contractimpl]
 impl SetLien {
@@ -54,6 +55,8 @@ impl SetLien {
             panic!("cannot lease token");
         }
 
+        // Set allowance to transfer
+        increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2);
         // make contract admin of the nft
         make_admin(&env, &token, current);
         // Set authorized to false so that user cannot transfer token unless delisted
@@ -90,6 +93,7 @@ impl SetLien {
         // Set all fields
 
         renter.require_auth();
+        let current = &env.current_contract_address();
 
         if !has_lease(&env, &token) {
             panic!("token does not have lease");
@@ -98,7 +102,7 @@ impl SetLien {
         // Load lease
         let mut leaser_renter = load_lease(&env, &token);
         let leaser = &leaser_renter.leasing.leaser;
-        let price = leaser_renter.leasing.price;
+        let price = calculate_total_price(_duration, leaser_renter.leasing.price);
         let payment_token = read_payment_token(&env);
 
         if !is_rentable(
@@ -111,6 +115,11 @@ impl SetLien {
             panic!("cannot rent token");
         }
 
+        // Set allowance to transfer payment token
+        increase_allowance(&env, &payment_token, &renter, current, (price * 2).try_into().unwrap());
+
+        // Set allowance to transfer nft token
+        increase_allowance(&env, &token, &renter, current, NFT_BALANCE * 2);
         // Transfer payment token to the leaser
         transfer_from(
             &env,
@@ -256,8 +265,16 @@ impl SetLien {
         event::claimed(&env, &leaser, &token, relist);
     }
 
-    pub fn get_lease(env: Env, token: Address) -> LeasingRenting {
-        load_lease(&env, &token)
+    pub fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {
+        if has_lease(&env, &token) {
+            Some(load_lease(&env, &token))
+        } else {
+            None
+        }
+    }
+
+    pub fn has_lease(env: Env, token: Address) -> bool {
+        has_lease(&env, &token)
     }
 
     pub fn get_admin(env: Env) -> Address {
@@ -302,7 +319,7 @@ fn is_rentable(
         return false;
     }
 
-    if _duration <= 0 {
+    if _duration <= 0 || _duration % SECONDS_IN_DAYS != 0 {
         return false;
     }
 
@@ -325,4 +342,9 @@ fn is_claimable(env: &Env, rented_at: u128, duration: u128, max_duration: u128) 
         return false;
     }
     true
+}
+
+fn calculate_total_price(_duration: u128, _price: u128) -> u128 {
+    let num_days = _duration / (SECONDS_IN_DAYS);
+    num_days * _price
 }

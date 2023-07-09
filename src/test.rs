@@ -34,7 +34,7 @@ fn test() {
 
     let payment_client = create_token(&e, &admin);
     let payment: Address = payment_client.address.clone();
-    payment_client.mint(&renter, &20);
+    payment_client.mint(&renter, &10);
 
     println!("{}, {:?}", payment_client.balance(&renter), payment);
 
@@ -43,8 +43,6 @@ fn test() {
     let price = 10;
     let max_duration = 30 * 24 * 60 * 60;
     let duration = 1 * 24 * 60 * 60;
-
-    println!("{}", token_client.balance(&leaser));
 
     set_lien.lease(&leaser, &token, &price, &max_duration);
     // assert_eq!(
@@ -57,15 +55,16 @@ fn test() {
     //     )]
     // );
 
-    let lease = set_lien.get_lease(&token);
+    // Verify fields
+    let lease = set_lien.get_lease(&token).unwrap();
     assert_eq!(LeaseState::Listed, lease.state);
     assert_eq!(leaser, lease.leasing.leaser);
     assert_eq!(max_duration, lease.leasing.max_duration);
     assert_eq!(price, lease.leasing.price);
+    // Verify balance
+    assert_eq!(1, token_client.balance(&leaser));
+    assert_eq!(false, token_client.authorized(&leaser));
 
-    println!("{}, {:?}", payment_client.balance(&renter), set_lien.get_payment_token());
-
-    payment_client.increase_allowance(&renter, &set_lien.address, &1000);
     set_lien.rent(&renter, &token, &duration);
     // assert_eq!(
     //     e.auths(),
@@ -77,11 +76,36 @@ fn test() {
     //     )]
     // );
 
-    let lease = set_lien.get_lease(&token);
+    let lease = set_lien.get_lease(&token).unwrap();
     assert_eq!(LeaseState::Rented, lease.state);
     assert_eq!(leaser, lease.leasing.leaser);
     assert_eq!(max_duration, lease.leasing.max_duration);
     assert_eq!(price, lease.leasing.price);
     assert_eq!(renter, lease.renting.renter);
     assert_eq!(duration, lease.renting.rent_duration);
+
+    // Verify balance
+    assert_eq!(0, token_client.balance(&leaser));
+    assert_eq!(true, token_client.authorized(&leaser));
+
+    assert_eq!(1, token_client.balance(&renter));
+    assert_eq!(false, token_client.authorized(&renter));
+
+    assert_eq!(0 as i128, payment_client.balance(&renter));
+    assert_eq!(price as i128, payment_client.balance(&leaser));
+
+    set_lien.end_rent(&renter, &token);
+    let has_lease = set_lien.has_lease(&token);
+    assert_eq!(false, has_lease);
+
+    // Verify balance
+    assert_eq!(1, token_client.balance(&leaser));
+    assert_eq!(true, token_client.authorized(&leaser));
+
+    assert_eq!(0, token_client.balance(&renter));
+    assert_eq!(true, token_client.authorized(&renter));
+
+    assert_eq!(0 as i128, payment_client.balance(&renter));
+    assert_eq!(price as i128, payment_client.balance(&leaser));
+
 }
