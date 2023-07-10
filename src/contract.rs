@@ -7,7 +7,7 @@ use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
 use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
-use soroban_sdk::{contractimpl, Address, Env};
+use soroban_sdk::{contractimpl, Address, Env, BytesN};
 pub struct SetLien;
 
 const NFT_BALANCE: i128 = 1;
@@ -263,6 +263,13 @@ impl SetLien {
         }
 
         event::claimed(&env, &leaser, &token, relist);
+    }
+    
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let admin = read_administrator(&env);
+        admin.require_auth();
+
+        env.update_current_contract_wasm(&new_wasm_hash);
     }
 
     pub fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {
