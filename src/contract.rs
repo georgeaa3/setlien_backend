@@ -168,7 +168,7 @@ impl SetLien {
         }
 
         // make leaser admin of the nft token
-        make_admin(&env, &token, &leaser);
+        // make_admin(&env, &token, &leaser);
         // Set authorized to true
         set_authorized(&env, &token, &leaser);
 
@@ -208,7 +208,7 @@ impl SetLien {
         // Set authorized to false so that user cannot transfer token unless delisted
         set_authorized(&env, &token, &leaser_renter.leasing.leaser);
         // make leaser admin of the nft token
-        make_admin(&env, &token, &leaser_renter.leasing.leaser);
+        // make_admin(&env, &token, &leaser_renter.leasing.leaser);
         
         remove_lease(&env, &token);
 
@@ -239,6 +239,7 @@ impl SetLien {
         // Authorize renter to transfer nft to leaser
         set_authorized(&env, &token, &leaser_renter.renting.renter);
 
+        // TODO: Check if there is no approval from renter, then clawback and mint
         // Transfer nft to the renter
         transfer_from(
             &env,
