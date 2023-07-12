@@ -58,7 +58,7 @@ impl SetLien {
         // Set allowance to transfer
         increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2);
         // make contract admin of the nft
-        make_admin(&env, &token, current);
+        // make_admin(&env, &token, current);
         // Set authorized to false so that user cannot transfer token unless delisted
         set_unauthorized(&env, &token, &leaser);
         // Set all fields
@@ -258,7 +258,7 @@ impl SetLien {
         } else {
             set_authorized(&env, &token, &leaser_renter.leasing.leaser);
             // make leaser admin of the nft token
-            make_admin(&env, &token, &leaser_renter.leasing.leaser);
+            // make_admin(&env, &token, &leaser_renter.leasing.leaser);
             
             remove_lease(&env, &token);
         }
