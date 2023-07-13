@@ -41,6 +41,13 @@ impl SetLien {
         event::resumed(&env, admin);
     }
 
+    pub fn change_nft_admin(env: Env, token: Address, new_admin: Address) {
+        let admin = read_administrator(&env);
+        admin.require_auth();
+
+        make_admin(&env, &token, &new_admin);
+    }
+
     pub fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
         leaser.require_auth();
 
