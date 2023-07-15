@@ -7,7 +7,9 @@ use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
 use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
-use soroban_sdk::{contractimpl, Address, Env, BytesN};
+use soroban_sdk::{contractimpl, contract, Address, Env, BytesN};
+
+#[contract]
 pub struct SetLien;
 
 const NFT_BALANCE: i128 = 1;
@@ -46,6 +48,13 @@ impl SetLien {
         admin.require_auth();
 
         make_admin(&env, &token, &new_admin);
+    }
+
+    pub fn change_payment_token(env: Env, payment_token: Address) {
+        let admin = read_administrator(&env);
+        admin.require_auth();
+
+        write_payment_token(&env, &payment_token);
     }
 
     pub fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
@@ -93,7 +102,7 @@ impl SetLien {
         // Emit event
     }
 
-    pub fn rent(env: Env, renter: Address, token: Address, _duration: u128) {
+    pub fn rent(env: Env, renter: Address, token: Address, duration: u128) {
         // Transfer token to renter
         // Set authorized to false so that user cannot transfer token
         // Transfer payment to leaser
@@ -109,14 +118,14 @@ impl SetLien {
         // Load lease
         let mut leaser_renter = load_lease(&env, &token);
         let leaser = &leaser_renter.leasing.leaser;
-        let price = calculate_total_price(_duration, leaser_renter.leasing.price);
+        let price = calculate_total_price(duration, leaser_renter.leasing.price);
         let payment_token = read_payment_token(&env);
 
         if !is_rentable(
             &env,
             &renter,
             &leaser,
-            _duration,
+            duration,
             leaser_renter.leasing.max_duration,
         ) {
             panic!("cannot rent token");
@@ -146,7 +155,7 @@ impl SetLien {
         // Set all fields
         let renting: Renting = Renting {
             renter: renter.clone(),
-            rent_duration: _duration,
+            rent_duration: duration,
             rented_at: env.ledger().timestamp() as u128,
         };
 
@@ -155,7 +164,7 @@ impl SetLien {
 
         write_lease(&env, &token, &leaser_renter);
 
-        event::rented(&env, &renter, &token,  _duration);
+        event::rented(&env, &renter, &token,  duration);
     }
 
     pub fn end_lease(env: Env, leaser: Address, token: Address) {
@@ -277,7 +286,7 @@ impl SetLien {
         let admin = read_administrator(&env);
         admin.require_auth();
 
-        env.update_current_contract_wasm(&new_wasm_hash);
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
     pub fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {

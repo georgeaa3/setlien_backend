@@ -1,5 +1,8 @@
 use soroban_sdk::{contracttype, Address};
 
+pub(crate) const INSTANCE_BUMP_AMOUNT: u32 = 34560; // 2 days
+pub(crate) const LEASE_BUMP_AMOUNT: u32 = 518400; // 30 days
+
 #[derive(Clone, PartialEq, Debug)]
 #[contracttype]
 pub enum LeaseState {

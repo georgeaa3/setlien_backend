@@ -1,7 +1,7 @@
 
 use soroban_sdk::{Address, Env, log};
 
-use crate::token;
+use crate::{token, storage_types::LEASE_BUMP_AMOUNT};
 
 pub fn balance(e: &Env, token: &Address, id: &Address) -> i128 {
     token::Client::new(e, token).balance(id)
@@ -21,8 +21,8 @@ pub fn transfer_from(e: &Env, token: &Address, from: &Address, to: &Address, amo
 
 pub fn increase_allowance(e: &Env, token: &Address, from: &Address, to: &Address, amount: i128) {
     let token_client = token::Client::new(e, token);
-    token_client.increase_allowance(from, &to, &amount);
-    log!(e, "Allwance: {}, {}", token_client.allowance(from, to), amount);
+    token_client.approve(from, &to, &amount, &LEASE_BUMP_AMOUNT);
+    // log!(e, "Allowance: {}, {}", token_client.allowance(from, to), amount);
 }
 
 pub fn make_admin(e: &Env, token: &Address, to: &Address) {

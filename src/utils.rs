@@ -5,10 +5,10 @@ use soroban_sdk::{Env};
 
 pub fn read_count(e: &Env) -> u128 {
     let key = DataKey::Count;
-    e.storage().get_unchecked(&key).unwrap()
+    e.storage().instance().get(&key).unwrap()
 }
 
 pub fn write_count(e: &Env, count: &u128) {
     let key = DataKey::Count;
-    e.storage().set(&key, count);
+    e.storage().instance().set(&key, count);
 }

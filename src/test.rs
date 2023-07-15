@@ -1,10 +1,10 @@
 #![cfg(test)]
 extern crate std;
 
-use std::{print, println};
+use std::{println};
 
 use crate::{contract::SetLien, contract::SetLienClient, storage_types::LeaseState, token};
-use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal, Symbol};
+use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal};
 
 fn create_setlien<'a>(e: &Env, admin: &Address, payment_token: &Address) -> SetLienClient<'a> {
     let token = SetLienClient::new(e, &e.register_contract(None, SetLien {}));
@@ -13,13 +13,17 @@ fn create_setlien<'a>(e: &Env, admin: &Address, payment_token: &Address) -> SetL
 }
 
 fn create_token<'a>(e: &Env, admin: &Address) -> token::Client<'a> {
-    token::Client::new(e, &e.register_stellar_asset_contract(admin.clone()))
+    let token =  token::Client::new(e, &e.register_contract_wasm(None, token::WASM));
+    // token::Client::new(e, &e.register_stellar_asset_contract(admin.clone()))
+    token.initialize(admin, &7,&"name".into_val(e), &"symbol".into_val(e));
+    token
 }
 
 #[test]
 fn test() {
     let e = Env::default();
     e.mock_all_auths();
+    e.budget().reset_unlimited();
 
     let admin = Address::random(&e);
     let leaser = Address::random(&e);
