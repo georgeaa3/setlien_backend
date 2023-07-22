@@ -7,7 +7,7 @@ use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
 use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
-use soroban_sdk::{contractimpl, contract, Address, Env, BytesN};
+use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log};
 
 #[contract]
 pub struct SetLien;
@@ -15,9 +15,43 @@ pub struct SetLien;
 const NFT_BALANCE: i128 = 1;
 const SECONDS_IN_DAYS: u128 = 86400;
 
+
+pub trait LienTrait {
+    fn initialize(env: Env, _admin: Address, _payment_token: Address);
+
+    fn pause(env: Env);
+
+    fn resume(env: Env);
+
+    fn change_nft_admin(env: Env, token: Address, new_admin: Address);
+
+    fn change_payment_token(env: Env, payment_token: Address);
+
+    fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128);
+
+    fn rent(env: Env, renter: Address, token: Address, duration: u128);
+
+    fn end_lease(env: Env, leaser: Address, token: Address);
+
+    fn end_rent(env: Env, renter: Address, token: Address);
+
+    fn claim_token(env: Env, leaser: Address, token: Address, relist: bool);
+
+    fn has_lease(env: Env, token: Address) -> bool;
+
+    fn get_lease(env: Env, token: Address) -> Option<LeasingRenting>;
+
+    fn get_admin(env: Env) -> Address;
+
+    fn get_payment_token(env: Env) -> Address;
+
+    fn upgrade(env: Env, new_wasm_hash: BytesN<32>);
+
+}
+
 #[contractimpl]
-impl SetLien {
-    pub fn initialize(env: Env, _admin: Address, _payment_token: Address) {
+impl LienTrait for SetLien {
+    fn initialize(env: Env, _admin: Address, _payment_token: Address) {
         if has_administrator(&env) {
             panic!("already initialized")
         }
@@ -27,7 +61,7 @@ impl SetLien {
         event::initialized(&env, &_admin, &_payment_token);
     }
 
-    pub fn pause(env: Env) {
+    fn pause(env: Env) {
         let admin = read_administrator(&env);
         admin.require_auth();
 
@@ -35,7 +69,7 @@ impl SetLien {
         event::paused(&env, admin);
     }
 
-    pub fn resume(env: Env) {
+    fn resume(env: Env) {
         let admin = read_administrator(&env);
         admin.require_auth();
 
@@ -43,21 +77,21 @@ impl SetLien {
         event::resumed(&env, admin);
     }
 
-    pub fn change_nft_admin(env: Env, token: Address, new_admin: Address) {
+    fn change_nft_admin(env: Env, token: Address, new_admin: Address) {
         let admin = read_administrator(&env);
         admin.require_auth();
 
         make_admin(&env, &token, &new_admin);
     }
 
-    pub fn change_payment_token(env: Env, payment_token: Address) {
+    fn change_payment_token(env: Env, payment_token: Address) {
         let admin = read_administrator(&env);
         admin.require_auth();
 
         write_payment_token(&env, &payment_token);
     }
 
-    pub fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
+    fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
         leaser.require_auth();
 
         let current = &env.current_contract_address();
@@ -102,7 +136,7 @@ impl SetLien {
         // Emit event
     }
 
-    pub fn rent(env: Env, renter: Address, token: Address, duration: u128) {
+    fn rent(env: Env, renter: Address, token: Address, duration: u128) {
         // Transfer token to renter
         // Set authorized to false so that user cannot transfer token
         // Transfer payment to leaser
@@ -167,7 +201,7 @@ impl SetLien {
         event::rented(&env, &renter, &token,  duration);
     }
 
-    pub fn end_lease(env: Env, leaser: Address, token: Address) {
+    fn end_lease(env: Env, leaser: Address, token: Address) {
         // Check lease status
         // Set authorized to true
         // Change admin back to leaser
@@ -193,7 +227,7 @@ impl SetLien {
         event::end_lease(&env, &leaser, &token, 0);
     }
 
-    pub fn end_rent(env: Env, renter: Address, token: Address) {
+    fn end_rent(env: Env, renter: Address, token: Address) {
         // Check lease status
         // Transfer token from renter to leaser
         // Set authorized to true for both
@@ -231,7 +265,7 @@ impl SetLien {
         event::returned(&env, &renter, &token, 0);
     }
 
-    pub fn claim_token(env: Env, leaser: Address, token: Address, relist: bool) {
+    fn claim_token(env: Env, leaser: Address, token: Address, relist: bool) {
         leaser.require_auth();
 
         // Load lease
@@ -282,14 +316,14 @@ impl SetLien {
         event::claimed(&env, &leaser, &token, relist);
     }
     
-    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+    fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
         let admin = read_administrator(&env);
         admin.require_auth();
 
         env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
-    pub fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {
+    fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {
         if has_lease(&env, &token) {
             Some(load_lease(&env, &token))
         } else {
@@ -297,15 +331,15 @@ impl SetLien {
         }
     }
 
-    pub fn has_lease(env: Env, token: Address) -> bool {
+    fn has_lease(env: Env, token: Address) -> bool {
         has_lease(&env, &token)
     }
 
-    pub fn get_admin(env: Env) -> Address {
+    fn get_admin(env: Env) -> Address {
         read_administrator(&env)
     }
 
-    pub fn get_payment_token(env: Env) -> Address {
+    fn get_payment_token(env: Env) -> Address {
         read_payment_token(&env)
     }
 }
@@ -356,7 +390,9 @@ fn is_rentable(
 fn is_claimable(env: &Env, rented_at: u128, duration: u128, max_duration: u128) -> bool {
     // now: 100000, rented_at: 90000, duration: 1000, max_duration: 2000
     let now = env.ledger().timestamp() as u128; // 10000
-                                                // rent time has not started yet (should never happen)
+
+    log!(env, "{}, {}, {}", now, rented_at, duration);
+     // rent time has not started yet (should never happen)
     if rented_at > now {
         return false;
     }
