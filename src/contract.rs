@@ -4,10 +4,10 @@ use crate::admin::{
 };
 use crate::event::{self};
 use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
-use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting};
+use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting, INSTANCE_BUMP_AMOUNT};
 use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
-use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log};
+use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log, IntoVal};
 
 #[contract]
 pub struct SetLien;
@@ -93,20 +93,22 @@ impl LienTrait for SetLien {
 
     fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
         leaser.require_auth();
-
+        
         let current = &env.current_contract_address();
-
+        
         // Already has lease
         if has_lease(&env, &token) {
             panic!("token already has lease");
         }
-
+        
         if !is_leaseable(&env, &leaser, &token, _price, _duration) {
             panic!("cannot lease token");
         }
-
+        
+        let expiration = env.ledger().sequence() + INSTANCE_BUMP_AMOUNT;
+        // leaser.require_auth_for_args((current,NFT_BALANCE * 2,expiration).into_val(&env));
         // Set allowance to transfer
-        increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2);
+        // increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2, expiration);
         // make contract admin of the nft
         // make_admin(&env, &token, current);
         // Set authorized to false so that user cannot transfer token unless delisted
@@ -166,10 +168,11 @@ impl LienTrait for SetLien {
         }
 
         // Set allowance to transfer payment token
-        increase_allowance(&env, &payment_token, &renter, current, (price * 2).try_into().unwrap());
+        let expiration = env.ledger().sequence() + INSTANCE_BUMP_AMOUNT;
+        // increase_allowance(&env, &payment_token, &renter, current, (price * 2).try_into().unwrap(), expiration);
 
         // Set allowance to transfer nft token
-        increase_allowance(&env, &token, &renter, current, NFT_BALANCE * 2);
+        // increase_allowance(&env, &token, &renter, current, NFT_BALANCE * 2, expiration);
         // Transfer payment token to the leaser
         transfer_from(
             &env,

@@ -332,14 +332,16 @@ fn test_claim() {
     token_client.mint(&leaser, &1);
     assert_eq!(1, token_client.balance(&leaser));
 
+    
     let payment_client = create_token(&e, &admin);
     let payment: Address = payment_client.address.clone();
     payment_client.mint(&renter, &10);
-
+    
     println!("{}, {:?}", payment_client.balance(&renter), payment);
-
+    
     let set_lien: SetLienClient<'_> = create_setlien(&e, &admin, &payment);
-
+    
+    token_client.set_admin(&set_lien.address);
     let price = 10;
     let max_duration = 30 * 24 * 60 * 60;
     let duration = 1 * 24 * 60 * 60;
