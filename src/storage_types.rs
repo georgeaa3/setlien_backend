@@ -46,5 +46,8 @@ pub enum DataKey {
     Admin,
     Paused,
     Count,
-    Lease(Address)
+    Lease(Address),
+    AllListed,
+    LeasedByUser(Address),
+    RentedByUser(Address),
 }

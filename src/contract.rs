@@ -3,11 +3,14 @@ use crate::admin::{
     write_administrator, write_payment_token,
 };
 use crate::event::{self};
-use crate::lease::{has_lease, load_lease, remove_lease, write_lease};
+use crate::lease::{has_lease, load_lease, remove_lease, write_lease, 
+    get_all_listed, add_all_listed, remove_all_listed, 
+    add_leased_by_user, remove_leased_by_user, get_leased_by_user, 
+    add_rented_by_user, remove_rented_by_user, get_rented_by_user};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting, INSTANCE_BUMP_AMOUNT};
 use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
 
-use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log, IntoVal};
+use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log, IntoVal, Vec};
 
 #[contract]
 pub struct SetLien;
@@ -44,6 +47,12 @@ pub trait LienTrait {
     fn get_admin(env: Env) -> Address;
 
     fn get_payment_token(env: Env) -> Address;
+
+    fn get_all_listed(env: Env) -> Vec<Address>;
+
+    fn get_leased_by_user(env: Env, user: Address) -> Vec<Address>;
+
+    fn get_rented_by_user(env: Env, user: Address) -> Vec<Address>;
 
     fn upgrade(env: Env, new_wasm_hash: BytesN<32>);
 
@@ -134,6 +143,10 @@ impl LienTrait for SetLien {
         // write lease
         write_lease(&env, &token, &leaserent);
 
+        add_all_listed(&env, &token);
+
+        add_leased_by_user(&env, &leaser, &token);
+
         event::leased(&env, &leaser, &token, _price, _duration);
         // Emit event
     }
@@ -201,6 +214,8 @@ impl LienTrait for SetLien {
 
         write_lease(&env, &token, &leaser_renter);
 
+        add_rented_by_user(&env, &renter, &token);
+
         event::rented(&env, &renter, &token,  duration);
     }
 
@@ -226,6 +241,10 @@ impl LienTrait for SetLien {
         set_authorized(&env, &token, &leaser);
 
         remove_lease(&env, &token);
+
+        remove_all_listed(&env, &token);
+
+        remove_leased_by_user(&env, &leaser, &token);
 
         event::end_lease(&env, &leaser, &token, 0);
     }
@@ -264,6 +283,10 @@ impl LienTrait for SetLien {
         // make_admin(&env, &token, &leaser_renter.leasing.leaser);
         
         remove_lease(&env, &token);
+
+        remove_all_listed(&env, &token);
+
+        remove_rented_by_user(&env, &renter, &token);
 
         event::returned(&env, &renter, &token, 0);
     }
@@ -314,7 +337,13 @@ impl LienTrait for SetLien {
             // make_admin(&env, &token, &leaser_renter.leasing.leaser);
             
             remove_lease(&env, &token);
+
+            remove_all_listed(&env, &token);
+
+            remove_leased_by_user(&env, &leaser, &token);
         }
+
+        remove_rented_by_user(&env, &leaser_renter.renting.renter, &token);
 
         event::claimed(&env, &leaser, &token, relist);
     }
@@ -332,6 +361,18 @@ impl LienTrait for SetLien {
         } else {
             None
         }
+    }
+
+    fn get_all_listed(env: Env) -> Vec<Address> {
+        get_all_listed(&env)
+    }
+
+    fn get_leased_by_user(env: Env, user: Address) -> Vec<Address> {
+        get_leased_by_user(&env, &user)
+    }
+
+    fn get_rented_by_user(env: Env, user: Address) -> Vec<Address> {
+        get_rented_by_user(&env, &user)
     }
 
     fn has_lease(env: Env, token: Address) -> bool {
