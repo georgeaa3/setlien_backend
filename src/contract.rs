@@ -276,13 +276,13 @@ impl LienTrait for SetLien {
         }
 
         // Authorize renter to transfer nft to leaser
-        set_authorized(&env, &token, &leaser_renter.renting.renter);
+        set_authorized(&env, &token, &renter);
 
         // Transfer nft to the renter
         transfer_from(
             &env,
             &token,
-            &leaser_renter.renting.renter,
+            &renter,
             &leaser_renter.leasing.leaser,
             NFT_BALANCE,
         );
