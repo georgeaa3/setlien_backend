@@ -103,7 +103,7 @@ impl LienTrait for SetLien {
     fn lease(env: Env, leaser: Address, token: Address, _price: u128, _duration: u128) {
         leaser.require_auth();
         
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         let current = &env.current_contract_address();
         
@@ -162,7 +162,7 @@ impl LienTrait for SetLien {
         renter.require_auth();
         let current = &env.current_contract_address();
 
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         if !has_lease(&env, &token) {
             panic!("token does not have lease");
@@ -230,7 +230,7 @@ impl LienTrait for SetLien {
 
         leaser.require_auth();
 
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         if !has_lease(&env, &token) {
             panic!("token does not have lease");
@@ -263,7 +263,7 @@ impl LienTrait for SetLien {
 
         renter.require_auth();
 
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         if !has_lease(&env, &token) {
             panic!("token does not have lease");
@@ -305,7 +305,7 @@ impl LienTrait for SetLien {
     fn claim_token(env: Env, leaser: Address, token: Address, relist: bool) {
         leaser.require_auth();
 
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         // Load lease
         let mut leaser_renter: LeasingRenting = load_lease(&env, &token);
@@ -365,13 +365,13 @@ impl LienTrait for SetLien {
         let admin = read_administrator(&env);
         admin.require_auth();
 
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         env.deployer().update_current_contract_wasm(new_wasm_hash);
     }
 
     fn get_lease(env: Env, token: Address) -> Option<LeasingRenting> {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         if has_lease(&env, &token) {
             Some(load_lease(&env, &token))
         } else {
@@ -380,32 +380,32 @@ impl LienTrait for SetLien {
     }
 
     fn get_all_listed(env: Env) -> Vec<Address> {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         get_all_listed(&env)
     }
 
     fn get_leased_by_user(env: Env, user: Address) -> Vec<Address> {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         get_leased_by_user(&env, &user)
     }
 
     fn get_rented_by_user(env: Env, user: Address) -> Vec<Address> {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         get_rented_by_user(&env, &user)
     }
 
     fn has_lease(env: Env, token: Address) -> bool {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         has_lease(&env, &token)
     }
 
     fn get_admin(env: Env) -> Address {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         read_administrator(&env)
     }
 
     fn get_payment_token(env: Env) -> Address {
-        env.storage().instance().bump(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
+        env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
         read_payment_token(&env)
     }
 }

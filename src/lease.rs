@@ -5,13 +5,13 @@ use crate::storage_types::{LeasingRenting, DataKey, LEASEE_LIFETIME_THRESHOLD, L
 pub fn write_lease(env: &Env, token: &Address, lease: &LeasingRenting) {
     let key = DataKey::Lease(token.clone());
     env.storage().persistent().set(&key, lease);
-    env.storage().persistent().bump(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+    env.storage().persistent().extend_ttl(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
 }
 
 pub fn load_lease(env: &Env, token: &Address) -> LeasingRenting {
     let key = DataKey::Lease(token.clone());
     if env.storage().persistent().has(&key) { 
-        env.storage().persistent().bump(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
     }
     env.storage().persistent().get(&key).unwrap()
 }
@@ -19,7 +19,7 @@ pub fn load_lease(env: &Env, token: &Address) -> LeasingRenting {
 pub fn has_lease(env: &Env, token: &Address) -> bool {
     let key = DataKey::Lease(token.clone());
     if env.storage().persistent().has(&key) {
-        env.storage().persistent().bump(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
         true
     } else {
         false
@@ -29,7 +29,7 @@ pub fn has_lease(env: &Env, token: &Address) -> bool {
 pub fn remove_lease(env: &Env, token: &Address) {
     let key = DataKey::Lease(token.clone());
     if env.storage().persistent().has(&key) { 
-        env.storage().persistent().bump(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
     }
     env.storage().persistent().remove(&DataKey::Lease(token.clone()));
 }
@@ -63,7 +63,7 @@ pub fn remove_all_listed(env: &Env, token: &Address) -> bool {
 pub fn get_all_listed(env: &Env) -> Vec<Address> {
     let key = DataKey::AllListed;
     if env.storage().persistent().has(&key) {
-        env.storage().persistent().bump(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&key, LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
     }
     env.storage().persistent().get(&key).unwrap_or(vec![env])
 }
@@ -96,7 +96,7 @@ pub fn remove_leased_by_user(env: &Env, leaser: &Address, token: &Address) -> bo
 
 pub fn get_leased_by_user(env: &Env, leaser: &Address) -> Vec<Address> {
     if env.storage().persistent().has(&DataKey::LeasedByUser(leaser.clone())) {
-        env.storage().persistent().bump(&DataKey::LeasedByUser(leaser.clone()), LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&DataKey::LeasedByUser(leaser.clone()), LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
     }
     env.storage().persistent().get(&DataKey::LeasedByUser(leaser.clone())).unwrap_or(vec![env])
 }
@@ -129,7 +129,7 @@ pub fn remove_rented_by_user(env: &Env, renter: &Address, token: &Address) -> bo
 
 pub fn get_rented_by_user(env: &Env, renter: &Address) -> Vec<Address> {
     if env.storage().persistent().has(&DataKey::RentedByUser(renter.clone())) {
-        env.storage().persistent().bump(&DataKey::RentedByUser(renter.clone()), LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
+        env.storage().persistent().extend_ttl(&DataKey::RentedByUser(renter.clone()), LEASEE_LIFETIME_THRESHOLD, LEASE_BUMP_AMOUNT);
     }
     env.storage().persistent().get(&DataKey::RentedByUser(renter.clone())).unwrap_or(vec![env])
 }
