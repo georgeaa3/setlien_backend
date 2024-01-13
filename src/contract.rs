@@ -117,6 +117,9 @@ impl LienTrait for SetLien {
         }
         
         let expiration = env.ledger().sequence() + INSTANCE_BUMP_AMOUNT;
+
+        // TODO: Check for user balance
+
         // leaser.require_auth_for_args((current,NFT_BALANCE * 2,expiration).into_val(&env));
         // Set allowance to transfer
         // increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2, expiration);
