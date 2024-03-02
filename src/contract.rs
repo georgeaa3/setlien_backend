@@ -8,7 +8,7 @@ use crate::lease::{has_lease, load_lease, remove_lease, write_lease,
     add_leased_by_user, remove_leased_by_user, get_leased_by_user, 
     add_rented_by_user, remove_rented_by_user, get_rented_by_user};
 use crate::storage_types::{LeaseState, Leasing, LeasingRenting, Renting, INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT};
-use crate::token_utils::{make_admin, set_authorized, set_unauthorized, transfer_from, increase_allowance};
+use crate::token_utils::{balance, clawback, get_allowance, make_admin, mint, set_authorized, set_unauthorized, transfer_from};
 
 use soroban_sdk::{contractimpl, contract, Address, Env, BytesN, log, IntoVal, Vec};
 
@@ -104,8 +104,6 @@ impl LienTrait for SetLien {
         leaser.require_auth();
         
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
-
-        let current = &env.current_contract_address();
         
         // Already has lease
         if has_lease(&env, &token) {
@@ -116,15 +114,10 @@ impl LienTrait for SetLien {
             panic!("cannot lease token");
         }
         
-        let expiration = env.ledger().sequence() + INSTANCE_BUMP_AMOUNT;
+        if balance(&env, &token, &leaser) == 0 {
+            panic!("not enough balance");
+        }
 
-        // TODO: Check for user balance
-
-        // leaser.require_auth_for_args((current,NFT_BALANCE * 2,expiration).into_val(&env));
-        // Set allowance to transfer
-        // increase_allowance(&env, &token, &leaser, current, NFT_BALANCE * 2, expiration);
-        // make contract admin of the nft
-        // make_admin(&env, &token, current);
         // Set authorized to false so that user cannot transfer token unless delisted
         set_unauthorized(&env, &token, &leaser);
         // Set all fields
@@ -163,10 +156,8 @@ impl LienTrait for SetLien {
         // Set all fields
 
         renter.require_auth();
-        let current = &env.current_contract_address();
 
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
-
         if !has_lease(&env, &token) {
             panic!("token does not have lease");
         }
@@ -187,12 +178,6 @@ impl LienTrait for SetLien {
             panic!("cannot rent token");
         }
 
-        // Set allowance to transfer payment token
-        let expiration = env.ledger().sequence() + INSTANCE_BUMP_AMOUNT;
-        // increase_allowance(&env, &payment_token, &renter, current, (price * 2).try_into().unwrap(), expiration);
-
-        // Set allowance to transfer nft token
-        // increase_allowance(&env, &token, &renter, current, NFT_BALANCE * 2, expiration);
         // Transfer payment token to the leaser
         transfer_from(
             &env,
@@ -245,8 +230,6 @@ impl LienTrait for SetLien {
             panic!("cannot end lease for a non-listed token");
         }
 
-        // make leaser admin of the nft token
-        // make_admin(&env, &token, &leaser);
         // Set authorized to true
         set_authorized(&env, &token, &leaser);
 
@@ -289,10 +272,8 @@ impl LienTrait for SetLien {
             &leaser_renter.leasing.leaser,
             NFT_BALANCE,
         );
-        // Set authorized to false so that user cannot transfer token unless delisted
+
         set_authorized(&env, &token, &leaser_renter.leasing.leaser);
-        // make leaser admin of the nft token
-        // make_admin(&env, &token, &leaser_renter.leasing.leaser);
         
         remove_lease(&env, &token);
 
@@ -308,6 +289,7 @@ impl LienTrait for SetLien {
     fn claim_token(env: Env, leaser: Address, token: Address, relist: bool) {
         leaser.require_auth();
 
+        let current = &env.current_contract_address();
         env.storage().instance().extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_BUMP_AMOUNT * 2);
 
         // Load lease
@@ -323,34 +305,42 @@ impl LienTrait for SetLien {
             leaser_renter.renting.rent_duration,
         );
 
+        let renter = &leaser_renter.renting.renter;
+        let leaser = &leaser_renter.leasing.leaser;
+
         // Check if rent is overdue
         if !is_claimable(&env, rented_at, duration, max_duration) {
             panic!("cannot claim token");
         }
 
         // Authorize renter to transfer nft to leaser
-        set_authorized(&env, &token, &leaser_renter.renting.renter);
+        set_authorized(&env, &token, renter);
 
-        // TODO: Check if there is no approval from renter, then clawback and mint
-        // Transfer nft to the renter
-        transfer_from(
-            &env,
-            &token,
-            &leaser_renter.renting.renter,
-            &leaser_renter.leasing.leaser,
-            NFT_BALANCE,
-        );
+        let allowance = get_allowance(&env, &token, renter, current);
+        // Check if there is no approval from renter, then clawback and mint
+        if allowance == 0 {
+            clawback(&env, &token, renter, &NFT_BALANCE);
+
+            mint(&env, &token, leaser, &NFT_BALANCE);
+        } else {
+            // Transfer nft to the renter
+            transfer_from(
+                &env,
+                &token,
+                renter,
+                leaser,
+                NFT_BALANCE,
+            );
+        }
 
         if relist {
             // Set authorized to false so that user cannot transfer token unless delisted
-            set_unauthorized(&env, &token, &leaser_renter.leasing.leaser);
+            set_unauthorized(&env, &token, leaser);
             leaser_renter.state = LeaseState::Listed;
             leaser_renter.renting.rent_duration = 0;
             write_lease(&env, &token, &leaser_renter);
         } else {
-            set_authorized(&env, &token, &leaser_renter.leasing.leaser);
-            // make leaser admin of the nft token
-            // make_admin(&env, &token, &leaser_renter.leasing.leaser);
+            set_authorized(&env, &token, leaser);
             
             remove_lease(&env, &token);
 
@@ -359,7 +349,7 @@ impl LienTrait for SetLien {
             remove_leased_by_user(&env, &leaser, &token);
         }
 
-        remove_rented_by_user(&env, &leaser_renter.renting.renter, &token);
+        remove_rented_by_user(&env, renter, &token);
 
         event::claimed(&env, &leaser, &token, relist);
     }
