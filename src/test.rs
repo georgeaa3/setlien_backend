@@ -1,10 +1,8 @@
 #![cfg(test)]
 extern crate std;
 
-use std::{println};
-
 use crate::{contract::SetLien, contract::SetLienClient, storage_types::LeaseState, token};
-use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal, token::StellarAssetClient};
+use soroban_sdk::{testutils::Address as _, Address, Env, IntoVal, token::TokenClient};
 
 fn create_setlien<'a>(e: &Env, admin: &Address, payment_token: &Address) -> SetLienClient<'a> {
     let token = SetLienClient::new(e, &e.register_contract(None, SetLien {}));
@@ -12,10 +10,11 @@ fn create_setlien<'a>(e: &Env, admin: &Address, payment_token: &Address) -> SetL
     token
 }
 
-fn create_token<'a>(e: &Env, admin: &Address) -> token::Client<'a> {
-    let token =  token::Client::new(e, &e.register_contract_wasm(None, token::WASM));
-    token::Client::new(e, &e.register_stellar_asset_contract(admin.clone()));
-    token.initialize(admin, &7,&"name".into_val(e), &"symbol".into_val(e));
+fn create_token<'a>(e: &Env, admin: &Address) -> TokenClient<'a> {
+    let token =  TokenClient::new(e, &e.register_contract_wasm(None, token::WASM));
+    // token::Client::new(e, &e.register_stellar_asset_contract(admin.clone()));
+    
+    token.initialize(admin, &7, &"name".into_val(e), &"symbol".into_val(e));
     token
 }
 
@@ -25,9 +24,9 @@ fn test() {
     e.mock_all_auths();
     e.budget().reset_unlimited();
 
-    let admin = Address::random(&e);
-    let leaser = Address::random(&e);
-    let renter = Address::random(&e);
+    let admin = Address::generate(&e);
+    let leaser = Address::generate(&e);
+    let renter = Address::generate(&e);
 
     // create token and set owner as leaser
     let token_client: token::Client<'_> = create_token(&e, &leaser);
@@ -67,7 +66,7 @@ fn test() {
     assert_eq!(price, lease.leasing.price);
     // Verify balance
     assert_eq!(1, token_client.balance(&leaser));
-    // assert_eq!(false, token_client.authorized(&leaser));
+    assert_eq!(false, token_client.authorized(&leaser));
 
     set_lien.rent(&renter, &token, &duration);
     // assert_eq!(
@@ -120,9 +119,9 @@ fn test_lease() {
     e.mock_all_auths();
     e.budget().reset_unlimited();
 
-    let admin = Address::random(&e);
-    let leaser = Address::random(&e);
-    let renter = Address::random(&e);
+    let admin = Address::generate(&e);
+    let leaser = Address::generate(&e);
+    let renter = Address::generate(&e);
 
     // create token and set owner as leaser
     let token_client: token::Client<'_> = create_token(&e, &leaser);
@@ -172,9 +171,9 @@ fn test_end_lease() {
     e.mock_all_auths();
     e.budget().reset_unlimited();
 
-    let admin = Address::random(&e);
-    let leaser = Address::random(&e);
-    let renter = Address::random(&e);
+    let admin = Address::generate(&e);
+    let leaser = Address::generate(&e);
+    let renter = Address::generate(&e);
 
     // create token and set owner as leaser
     let token_client: token::Client<'_> = create_token(&e, &leaser);
@@ -238,9 +237,9 @@ fn test_rent() {
     e.mock_all_auths();
     e.budget().reset_unlimited();
 
-    let admin = Address::random(&e);
-    let leaser = Address::random(&e);
-    let renter = Address::random(&e);
+    let admin = Address::generate(&e);
+    let leaser = Address::generate(&e);
+    let renter = Address::generate(&e);
 
     // create token and set owner as leaser
     let token_client = create_token(&e, &leaser);
@@ -327,9 +326,9 @@ fn test_claim() {
     e.budget().reset_unlimited();
     println!("aksjkajsjak{}", e.ledger().timestamp());
 
-    let admin = Address::random(&e);
-    let leaser = Address::random(&e);
-    let renter = Address::random(&e);
+    let admin = Address::generate(&e);
+    let leaser = Address::generate(&e);
+    let renter = Address::generate(&e);
 
     // create token and set owner as leaser
     let token_client: token::Client<'_> = create_token(&e, &leaser);
